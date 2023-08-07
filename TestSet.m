@@ -2,24 +2,25 @@ clear all; close all;
 
 warning off
 %% Load the sharps boundary conditions
-allsharps = 7050:8369;
+allsharps = 8369:9678;%7050:8369;
 sharps = [];
 for j = 1:numel(allsharps)
     sharp = allsharps(j);
     fileList = dir(sprintf( ...
-        "D:\\nats ML stuff\\SHARP_data_v2\\hmi.sharp_cea_720s.%i.*.fits" ...
+        "D:\\SHARP_data_v3\\hmi.sharp_cea_720s.%i.*.fits" ...
         , sharp));
     matList = dir(sprintf( ...
-        "D:\\nats ML stuff\\MHS_solutions_v3\\sharp%i.mat" ...
+        "D:\\MHS_solutions_v4\\sharp%i.mat" ...
         , sharp));
     if numel(fileList) > 0 && numel(matList) == 0
         fprintf("%i\n",j);
         splitName = split(fileList(1).name,"."); datetime = splitName{4};
         filename = sprintf(...
-            "D:\\nats ML stuff\\SHARP_data_v2\\hmi.sharp_cea_720s.%i.%s", ...
+            "D:\\SHARP_data_v3\\hmi.sharp_cea_720s.%i.%s", ...
             sharp,datetime);
         trial = fitsread(filename+".Br.fits","image");
-        if max(abs(trial(:))) < 1e4
+        if max(abs(trial(:))) < 1e4 && ...
+                min(size(fitsread(filename + ".Br.fits","image"))) > 100
             Brs{j} = fitsread(filename + ".Br.fits","image");
             Bps{j} = fitsread(filename + ".Bp.fits","image");
             Bts{j} = fitsread(filename + ".Bt.fits","image");
@@ -33,59 +34,65 @@ end
 %% Choose a sharps to evaluate
 sharpsn = numel(sharps);
 availableGPUs = gpuDeviceCount("available");
-
-for newj = 836:-1:1
+parpool('Processes',availableGPUs);
+parfor newj = 1:sharpsn
     tic;
 
     j = sharps(newj);
     parprint(sprintf("j=%i/%i starting...\n",newj,sharpsn));
 
-    Br = Brs{j}(end:-1:1,:)/1e3;
-    Bt = Bts{j}(end:-1:1,:)/1e3;
-    Bp = Bps{j}(end:-1:1,:)/1e3;
+    Br = flipud(Brs{j})/1e3;
+    Bt = flipud(Bts{j})/1e3;
+    Bp = flipud(Bps{j})/1e3;
     % Build the nodeset
-    numpoints = 30;
-    
-    supersmooth = GaussianFilter(abs(Br),63,15);
-    supersmooth = supersmooth / max(supersmooth(:));
+    numpoints = 1e5;
+
+    % determine dimensions
     imageX = size(Br,1)/min(size(Br)); imageY = size(Br,2)/min(size(Br));
-    height = 2*max(imageX,imageY);
-
-
-    [X,Y] = ndgrid(linspace(0,imageX,size(Br,1)),linspace(0,imageY,size(Br,2)));
-    electrofn = griddedInterpolant(X,Y,5./(5*supersmooth.^2+1));
+    imageZ = 2*max(imageX,imageY);
     
-    [nodesx,nodesy,nodesz] = meshgrid(linspace(0,1,numpoints));
-    nodes = [nodesx(:),nodesy(:),nodesz(:)];
-    nodes(:,1) = nodes(:,1)*imageX;
-    nodes(:,2) = nodes(:,2)*imageY;
-    nodes(:,3) = nodes(:,3)*height;
-    
-    constantfn = @(x,y,z)ones(size(x));
-    impulse = 2e-4;
-    nodes = unique(electrostatic_repulsion(nodes,20, ...
-        constantfn,impulse,[0 imageX 0 imageY 0 height],30),'rows');
+    % initialize x,y plane
+    switch 2
+        case 1
+            window = 20;
+            BrCropped = Br(1:floor(size(Br,1)/window)*window,1:floor(size(Br,2)/window)*window);
+            supersmooth = sepblockfun(abs(BrCropped-mean(BrCropped(:))),[window,window],'max');
+            [Xsm,Ysm] = ndgrid((0:size(supersmooth,1)-1)*window*imageX/(size(Br,1)-1), ...
+                               (0:size(supersmooth,2)-1)*window*imageY/(size(Br,2)-1));
+        case 2
+            w = floor(min(size(Br))/40)*2+1;
+            supersmooth = slideMaxFilter(abs(Br-mean(Br(:))),w);
+            [Xsm,Ysm] = ndgrid(linspace(0,imageX,size(supersmooth,1)), ...
+                               linspace(0,imageY,size(supersmooth,2)));
+    end
+    supersmooth = supersmooth/max(supersmooth(:));
 
-    electrofn3d = @(x,y,z)(electrofn(x,y).*exp(4*z/height));
-    impulse = 2e-5;
-    nodes = unique(electrostatic_repulsion(nodes,100, ...
-        electrofn3d,impulse,[0 imageX 0 imageY 0 height],30),'rows');
+    smoothfn = griddedInterpolant(Xsm,Ysm,supersmooth,'linear','nearest');
+    omega = 1;
+    rfn = @(xyz)((1-smoothfn(xyz(:,1),xyz(:,2)))*max(imageX,imageY)*1e-2+1.5e-2).*exp(omega*xyz(:,3)/imageZ);
+    nodes = node_drop_3d ([0 imageX 0 imageY 0 imageZ], size(Br), numpoints, rfn);
+
+    eps = 1e-4;
     
-    eps = 1e-2;
+    index_z0 = find(nodes(:,3)<eps*imageZ);
+    n0 = numel(index_z0);
+
+    nodes = [nodes(index_z0,:)-[zeros(n0,2),rfn(nodes(index_z0,:))];nodes];%#ok<AGROW>
+    index_gh = (1:n0)';
+
+    index_z0 = index_z0 + n0;
     index_x0 = find(nodes(:,1)<eps*imageX);
-    index_x1 = find(nodes(:,1)>imageX-eps*imageX);
     index_y0 = find(nodes(:,2)<eps*imageY);
+    index_x1 = find(nodes(:,1)>imageX-eps*imageX);
     index_y1 = find(nodes(:,2)>imageY-eps*imageY);
-    index_z0 = find(nodes(:,3)<eps*height);
-    index_z1 = find(nodes(:,3)>height-eps*height);
-    
-    nodes = [nodes;nodes(index_z0,:)-[0,0,0.5*height/numpoints]];
+    index_z1 = find(nodes(:,3)>imageZ-eps*exp(imageZ*omega));
+
     n = size(nodes,1);
     
-    index_gh = ((n-numel(index_z0)+1):n)';
     
     index_bd = unique([index_z0;index_z1;index_gh;index_x0;index_x1;index_y0;index_y1]);
-    index_in = setdiff(1:n,index_bd);
+    index_in = setdiff((1:n)',index_bd);
+    index_re = setdiff((1:n)',index_gh);
     
     % Build RBF matrices
     rbfk = 100;
@@ -138,33 +145,41 @@ for newj = 836:-1:1
     interpN = 64;
     pressn = 100;
     Bns = zeros(3*n,sampleN);
-    rns = zeros(sampleN);
+    rns = zeros(sampleN,1);
     forcevec = 0*Bns;
     gamma = 1e-2;
 
-    Bx = griddedInterpolant(X,Y,-Bp);
-    By = griddedInterpolant(X,Y,Bt);
+    [X,Y] = ndgrid(linspace(0,imageX,size(Br,1)),linspace(0,imageY,size(Br,2)));
+    Bx = griddedInterpolant(X,Y,-Bt);
+    By = griddedInterpolant(X,Y,-Bp);
     Bz = griddedInterpolant(X,Y,Br);
     Bx0 = Bx(nodes(index_z0,1),nodes(index_z0,2));
     By0 = By(nodes(index_z0,1),nodes(index_z0,2));
     Bz0 = Bz(nodes(index_z0,1),nodes(index_z0,2));
     
     samplepresnode = net(haltonset(3),pressn);
+    samplepresnode(:,1) = samplepresnode(:,1)*imageX;
+    samplepresnode(:,2) = samplepresnode(:,2)*imageY;
+    samplepresnode(:,3) = samplepresnode(:,3)*imageZ;
     [~,pDx,pDy,pDz] = RBF_find_global_weights( ...
                 samplepresnode(:,1),samplepresnode(:,2),samplepresnode(:,3),...
                 nodes(index_z0,1),nodes(index_z0,2),nodes(index_z0,3), ...
                 3, 0 ...
                );
     [Q,R] = qr((pDx.*Bx0+pDy.*By0+pDz.*Bz0)');
-    [r,rd] = sort(abs(diag(R)));
-    sd = randperm(max(find(r>=1e-3,1),sampleN),sampleN);
-    samplepressure = 4*Q(:,rd(sd));
+    % [r,rd] = sort(abs(diag(R)));
+    % sd = randperm(max(find(r>=1e-3,1),sampleN),sampleN);
+    % samplepressure = Q(:,rd(sd));
+    rd = find(abs(diag(R))<=1e-3);
+    Qweights = sum((imageZ-samplepresnode(:,3)).*abs(Q(:,rd)),1)/pressn;
+    [~,sd] = maxk(Qweights,sampleN);
+    samplepressure = 0.5*Q(:,rd(sd));
 
     [Bpx,Bpy,Bpz] = potfield(nodes,index_z0,Bz0,64);
     [Bff,rff] = num_mhs(zeros(n,1),zeros(n,3),Bx0,By0,Bz0, n, ...
             nodes, Dx, Dy, Dz, Dxx, Dyy, Dzz, 1,...
             index_x0,index_x1,index_y0,index_y1,index_z0,index_z1,index_gh, ...
-            gamma,[Bpx;Bpy;Bpz],[Bpx;Bpy;Bpz]);
+            gamma,[Bpx;Bpy;Bpz]);
     parprint(sprintf('Generated force-free version r=%s.\n',sprintf(" %e ",rff)));
     
     for cpuj = 1:sampleN
@@ -185,7 +200,7 @@ for newj = 836:-1:1
         [Bns(:,cpuj),rs] = num_mhs(dens,pres,Bx0,By0,Bz0, n, ...
             nodes, Dx, Dy, Dz, Dxx, Dyy, Dzz, 1,...
             index_x0,index_x1,index_y0,index_y1,index_z0,index_z1,index_gh, ...
-            gamma,Bff,[Bpx;Bpy;Bpz]);
+            gamma,[Bpx;Bpy;Bpz]);
         rns(cpuj) = rs(end);
 
         forcevec(:,cpuj) = [presx;presy;presz];
@@ -193,41 +208,76 @@ for newj = 836:-1:1
         parprint(sprintf(" -%i - %i/%i done, r=%s\n",newj,cpuj,sampleN,sprintf(" %e ",rs)));
     end
     parprint(sprintf("j=%i/%i done in %f.\n",newj,sharpsn,toc));
-    parsave(sprintf("D:\\nats ML stuff\\MHS_solutions_v3\\sharp%i.mat", ...
-        allsharps(j)),Bns,nodes,index_z0,n,rns,forcevec,Bff);
+    parsave(sprintf("D:\\MHS_solutions_v4\\sharp%i.mat", allsharps(j)), ...
+            Bns([index_re;n+index_re;2*n+index_re],:), ...
+            nodes(index_re,:), ...
+            index_z0-n0,n-n0, ...
+            rns, ...
+            forcevec([index_re;n+index_re;2*n+index_re],:), ...
+            Bff([index_re;n+index_re;2*n+index_re],:) ...
+    );
 end
 %%
+close all;
+tri = delaunay(nodes(index_z0,1),nodes(index_z0,2));
 for plotind = 0:6
-    if plotind == 0, Bn = Bff; else, Bn = Bns(:,plotind); end
+    if plotind == 0
+        Bn = Bff;
+        fn = zeros(n,1);
+    else
+        Bn = Bns(:,plotind);
+        fn = sqrt(forcevec(1:n,plotind).^2+forcevec(n+1:2*n,plotind).^2+forcevec(2*n+1:3*n,plotind));
+    end
+    threshold = 1e-3;
     % Plotting
+    % mask = find(sqrt(Bn(1:n).^2+Bn(n+1:2*n).^2+Bn(2*n+1:3*n).^2)<threshold);
+    % Bn([mask;n+mask;2*n+mask]) = 0;
     numX = scatteredInterpolant(nodes, Bn(1:n),'nearest');
     numY = scatteredInterpolant(nodes, Bn(n+1:2*n),'nearest');
     numZ = scatteredInterpolant(nodes, Bn(2*n+1:3*n),'nearest');
+    numP = scatteredInterpolant(nodes, fn,'nearest');
+    numB = scatteredInterpolant(nodes, sqrt(Bn(1:n).^2+Bn(n+1:2*n).^2+Bn(2*n+1:3*n).^2),'nearest');
     
-    step = 0.01;
-    [xq,yq,zq] = meshgrid(0:step:max(nodes(:,1)),0:step:0:step:max(nodes(:,2)),0:step:max(nodes(:,3)));
+    perdim = 100;
+    [xq,yq,zq] = meshgrid(linspace(0,max(nodes(:,1)),perdim), ...
+                          linspace(0,max(nodes(:,2)),perdim), ...
+                          linspace(0,max(nodes(:,3)/2),perdim));
     Bxnq = numX(xq,yq,zq);
     Bynq = numY(xq,yq,zq);
     Bznq = numZ(xq,yq,zq);
     
     % Streamlines
-    step = 8;
+    step = 4;
     startx = squeeze(xq(1:step:end,1:step:end,1));
     starty = squeeze(yq(1:step:end,1:step:end,1));
     startz = squeeze(zq(1:step:end,1:step:end,1));
     
+    streamsForw = stream3(xq,yq,zq,Bxnq,Bynq,Bznq,startx(:),starty(:),startz(:));
+    streamsBack = stream3(xq,yq,zq,-Bxnq,-Bynq,-Bznq,startx(:),starty(:),startz(:));
     fig = figure(plotind+1);
     ax = axes('Parent',fig);
-    h1 = streamline(xq,yq,zq,Bxnq,Bynq,Bznq,startx(:),starty(:),startz(:));
+    h1 = streamtube(streamsForw,0.01);
     hold on;
-    h2 = streamline(xq,yq,zq,-Bxnq,-Bynq,-Bznq,startx(:),starty(:),startz(:));
-    h3 = slice(xq,yq,zq,Bznq,[],[],0);
-    colormap('jet');
-    set(h1,'Color','k'); set(h2, 'Color','k'); set(h3,'edgecolor','flat');
-    view(3); %axis([0 1 0 1 0 1]);
+    h2 = streamtube(streamsBack,0.01);
+    % h3 = slice(xq,yq,zq,Bznq,[],[],0);
+    h3 = trisurf(tri,nodes(index_z0,1),nodes(index_z0,2),nodes(index_z0,3),Bn(2*n+index_z0));
+    set(h3,'edgecolor','flat');
+
+    for streamind=1:length(h1)
+        set(h1(streamind),'AlphaData',numB(get(h1(streamind),'XData'),get(h1(streamind),'YData'),get(h1(streamind),'ZData')));
+        set(h1(streamind),'FaceColor','black','FaceAlpha','interp','EdgeColor','none');
+    end
+    for streamind=1:length(h2)
+        set(h2(streamind),'AlphaData',numB(get(h2(streamind),'XData'),get(h2(streamind),'YData'),get(h2(streamind),'ZData')));
+        set(h2(streamind),'FaceColor','black','FaceAlpha','interp','EdgeColor','none');
+    end
+    view(3);
     set(gca,'Fontsize',16);
-    view(ax,[-1.1,23.8]);
+    axis('equal');
+    view(ax,[-91.5 76.5]);
     xlabel('x'); ylabel('y'); zlabel('z');
+
+    colormap('parula'); clim([-1 1]); 
     hold off;
 end
 
