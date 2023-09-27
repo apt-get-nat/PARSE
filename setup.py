@@ -1,4 +1,4 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 
 from parse import __version__
 
@@ -11,7 +11,7 @@ setup(
     author='Nat Mathews',
     author_email='n.h.mathews@nasa.gov',
 
-    py_modules=['parse'],
+    py_modules=find_packages(),
     install_requires=[
         'numpy',
         'scipy',
