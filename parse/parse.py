@@ -1,7 +1,5 @@
 import numpy as np
 
-__version__ = "1.0.0"
-
 fformatstr = "{folder}/PARSE.simulation.1.0.0.sharp.{sharpnum}.realization.{parseind}.fits"
 getrecord = 8213061
 
