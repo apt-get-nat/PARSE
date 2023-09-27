@@ -1,6 +1,6 @@
-from parse.parse import *
+from .parse import *
 
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 
 def __init__():
     return
