@@ -11,7 +11,7 @@ setup(
     author='Nat Mathews',
     author_email='n.h.mathews@nasa.gov',
 
-    py_modules=find_packages(),
+    packages=find_packages(),
     install_requires=[
         'numpy',
         'scipy',
