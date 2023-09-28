@@ -1,6 +1,6 @@
 .. _tutorial:
-Basic Usage
-***********
+Getting Started
+***************
 
 First we must import the library
 
@@ -12,13 +12,13 @@ To download a single element from the PARSE dataset (say, corresponding to SHARP
 
 .. code-block:: python
 
-    parse.pullPARSE(7821,0)
+    parse.pullPARSE(7821,1)
 
 Read the data with the :py:func:`readparse.readPARSE` function, which takes a tuple of the same arguments pullPARSE got.
 
 .. code-block:: python
 
-    data = parse.readPARSE((7821,0))
+    data = parse.readPARSE((7821,1))
 
 Now data is a :py:class:`readparse.PARSE` object, containing the full scattered data, which can be worked with as-is. Suppose we wish to visualize this element. It is easiest to do this if we first interpolate onto a regular grid, so let us do so.
 
@@ -53,3 +53,7 @@ Finally, we plot the fieldlines and lower boundary in vtk.
     for stream in fieldlines:
         pl.add_lines(stream,color='black',width=1,connected = True)
     pl.show()
+
+.. raw:: html
+
+   <iframe src="../_static/vtkwidget.html" height="345px" width="100%"></iframe>
