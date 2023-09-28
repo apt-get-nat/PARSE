@@ -14,10 +14,9 @@ sphinx:
 formats: []
 
 python:
-  version: "3.11"
+  version: 3.11
   install:
-    - method: pip
-    - requirements: docs/requirements.txt
+      requirements: docs/requirements.txt
       path: .
       extra_requirements:
         - docs
