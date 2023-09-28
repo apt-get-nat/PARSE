@@ -1,10 +1,10 @@
 from setuptools import setup, find_packages
 
-from parse import __version__
+from readparse import __version__
 
 
 setup(
-    name='parse',
+    name='readparse',
     version=__version__,
 
     url='https://github.com/apt-get-nat/PARSE',
