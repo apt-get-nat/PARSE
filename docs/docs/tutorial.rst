@@ -1,5 +1,4 @@
-.. _basic usage:
-
+.. _tutorial:
 Basic Usage
 ***********
 

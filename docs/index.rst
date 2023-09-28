@@ -4,14 +4,12 @@
    contain the root `toctree` directive.
 .. title:: readparse
 
-``readparse`` is a small python library designed to interface with the PARSE solar dataset.
+About
+*****
 
-Installation
-************
+`readparse <https://github.com/apt-get-nat/PARSE>`_ is a lightweight python library designed to interface with the PARSE solar dataset. The dataset itself is provided in the form of specified FITS files, but this utility is served as a means of easily reading the data into python, and interpolating it onto a regular grid for plotting or comparison.
 
-You can install the library with pip via the command::
-
-    pip install git+https://github.com/apt-get-nat/PARSE
+To learn more, try reading :ref:`install` or :ref:`tutorial`.
 
 
 .. toctree::
@@ -19,6 +17,7 @@ You can install the library with pip via the command::
    :hidden:
    
    self
+   docs/install
    docs/tutorial
    docs/parseclass
    docs/functions
