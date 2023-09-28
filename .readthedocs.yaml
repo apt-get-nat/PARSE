@@ -16,8 +16,4 @@ formats: []
 python:
   version: 3.11
   install:
-      requirements: docs/requirements.txt
-      path: .
-      extra_requirements:
-        - docs
-        - all
+    - requirements: docs/requirements.txt
