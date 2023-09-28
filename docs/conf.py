@@ -40,6 +40,10 @@ intersphinx_mapping = {
     "scipy": ("https://docs.scipy.org/doc/scipy/reference/", None),
     "streamtracer": ("https://streamtracer.readthedocs.io/en/latest/", None)
 }
+autodoc_mock_imports = ['numpy',
+                        'scipy',
+                        'streamtracer'
+                       ]
 source_suffix = [".rst", ".md"]
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
