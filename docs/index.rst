@@ -9,12 +9,14 @@
 Installation
 ************
 
-You can install the library with pip via the command:
-``pip install git+https://github.com/apt-get-nat/PARSE``
+You can install the library with pip via the command::
+
+    pip install git+https://github.com/apt-get-nat/PARSE
 
 
 .. toctree::
    :maxdepth: 1
+   :hidden:
    
    self
    docs/tutorial

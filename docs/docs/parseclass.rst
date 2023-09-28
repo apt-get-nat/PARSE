@@ -3,5 +3,9 @@
 The PARSE class
 ***************
 
-:class: `PARSE`
-A representation of a single simulated realization of an active region.
+.. autoclass:: readparse.PARSE
+
+.. automethod:: readparse.PARSE.compile_grid
+
+.. automethod:: readparse.PARSE.fieldlines
+   

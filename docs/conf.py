@@ -10,9 +10,9 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
-# import os
-# import sys
-# sys.path.insert(0, os.path.abspath('.'))
+import os
+import sys
+sys.path.insert(0, os.path.abspath('./..'))
 
 
 # -- Project information -----------------------------------------------------
@@ -31,7 +31,15 @@ release = '1.0.0'
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
+              'sphinx.ext.autodoc',
+              'sphinx.ext.intersphinx'
 ]
+intersphinx_mapping = {
+    "astropy": ("https://docs.astropy.org/en/stable/", None),
+    "numpy": ("https://numpy.org/doc/stable/", None),
+    "scipy": ("https://docs.scipy.org/doc/scipy/reference/", None),
+    "streamtracer": ("https://streamtracer.readthedocs.io/en/latest/", None)
+}
 source_suffix = [".rst", ".md"]
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
