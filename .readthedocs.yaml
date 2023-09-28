@@ -11,6 +11,12 @@ build:
 sphinx:
   configuration: docs/conf.py
 
-formats:
-   - pdf
-   - epub
+formats: []
+
+python:
+  install:
+    - method: pip
+      path: .
+      extra_requirements:
+        - docs
+	- all
