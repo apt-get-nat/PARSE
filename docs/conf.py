@@ -18,8 +18,8 @@ sys.path.insert(0, os.path.abspath('./..'))
 # -- Project information -----------------------------------------------------
 
 project = 'readparse'
-copyright = '2023, Nat Mathews'
-author = 'Nat Mathews'
+copyright = '2023, name temporarily redacted for anonymous review'#'2023, Nat Mathews'
+author = 'Name temporarily redacted for anonymous review'#'Nat Mathews'
 
 # The full version, including alpha/beta/rc tags
 release = '1.0.0'
